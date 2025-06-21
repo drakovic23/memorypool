@@ -25,6 +25,7 @@ public:
         void* currentPtr = m_memPool + m_currentOffset;
         size_t memAvailable = m_poolSize - m_currentOffset;
         //NOTE: std::align will automatically subtract the space used from memAvailable here
+        // std::align returns a ptr to the first byte of aligned storage
         void* alignedPtr = align(alignment, size, currentPtr, memAvailable );
 
         if (alignedPtr == nullptr) {
@@ -32,7 +33,7 @@ public:
             throw bad_alloc();
         }
 
-        size_t alignedOffset = (unsigned char * ) alignedPtr - m_memPool;
+        size_t alignedOffset = static_cast<unsigned char *>(alignedPtr) - m_memPool;
         m_currentOffset = alignedOffset + size;
 
         return alignedPtr;
