@@ -20,7 +20,6 @@ class MemoryPool {
         }
     };
 
-    //unsigned char* m_memPool; // Pointer to allocated memory pool
     MemoryChunk *m_currentChunk; // current chunk
     MemoryChunk *m_chunkHead;
     size_t m_poolSize; // Total memory in terms of chunks allocated
@@ -37,7 +36,6 @@ public:
         m_currentChunk = new MemoryChunk(sizeNeeded);
         m_chunkHead = m_currentChunk;
         m_poolSize = sizeNeeded;
-        //cout << "Memory pool created with size of " << sizeNeeded << " bytes \n";
     }
 
     ~MemoryPool() {
@@ -51,15 +49,13 @@ public:
     }
 
     void *allocate() {
-        if (m_currentChunk == nullptr) { //If allocate is called, the current chunk needs to be reallocated
+        if (m_currentChunk == nullptr) { //If clear is called, the current chunk needs to be reallocated
             m_currentChunk = new MemoryChunk(sizeof(T));
             m_chunkCount = 1;
             m_poolSize = sizeof(T) * m_chunkCount;
         }
         size_t memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
-        //cout << "Mem available: " << memAvailable << '\n';
         if (memAvailable < sizeof(T)) {
-            //cout << "Creating new chunk\n";
             m_currentChunk->m_next = new MemoryChunk(sizeof(T) * m_objectsPerChunk);
             m_currentChunk = m_currentChunk->m_next;
             m_currentChunkOffset = 0;
@@ -81,12 +77,13 @@ public:
     }
 
     void clear() noexcept {
-        MemoryChunk *chunk = m_chunkHead;
-        while (chunk->m_next != nullptr) {
-            delete[] chunk->m_data;
-            chunk = chunk->m_next;
+        MemoryChunk* current = m_chunkHead;
+        while (current != nullptr) {
+            MemoryChunk* next = current->m_next;
+            delete[] current->m_data;
+            delete current;
+            current = next;
         }
-
         m_chunkCount = 0;
         m_currentChunk = nullptr;
         m_currentChunkOffset = 0;
