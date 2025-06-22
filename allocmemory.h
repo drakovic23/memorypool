@@ -5,42 +5,80 @@
 #include <memory>
 
 using namespace std;
+
+template<typename T>
 class MemoryPool {
-    unsigned char* m_memPool; // Pointer to allocated memory pool
-    size_t m_poolSize; // Total pool size
-    size_t m_currentOffset; // current offset
+    struct MemoryChunk {
+        unsigned char *m_data;
+        MemoryChunk *m_next;
+        size_t m_size;
+
+        explicit MemoryChunk(size_t size) {
+            m_data = new unsigned char[size];
+            m_size = size;
+            m_next = nullptr;
+        }
+    };
+
+    //unsigned char* m_memPool; // Pointer to allocated memory pool
+    MemoryChunk *m_currentChunk; // current chunk
+    MemoryChunk *m_chunkHead;
+    size_t m_poolSize; // Total memory allocated
+    size_t m_currentChunkOffset;
+    size_t m_objectsPerChunk;
+    size_t m_chunkCount;
+
 public:
-    explicit MemoryPool(size_t size = 10240) :m_poolSize (size), m_currentOffset(0) {
-        m_memPool = new unsigned char[m_poolSize];
-        //cout << "Memory pool created with size of " << " bytes \n";
+    explicit MemoryPool(size_t objectsPerChunk = 64) noexcept : m_currentChunkOffset(0),
+                                                       m_objectsPerChunk(objectsPerChunk),
+                                                       m_chunkCount(1)  {
+        //Allocate our first chunk
+        size_t sizeNeeded = sizeof(T) * objectsPerChunk;
+        m_currentChunk = new MemoryChunk(sizeNeeded);
+        m_chunkHead = m_currentChunk;
+        m_poolSize = sizeNeeded;
+        //cout << "Memory pool created with size of " << sizeNeeded << " bytes \n";
     }
 
     ~MemoryPool() {
-        delete[] m_memPool;
+        MemoryChunk *chunk = m_chunkHead;
+        while (chunk->m_next != nullptr) {
+            delete[] chunk->m_data;
+            chunk = chunk->m_next;
+        }
     }
 
-    // We need to consider alignment due to padding
-    // allocate(sizeof(object), alignof(object) )
-    void* allocate(size_t size, size_t alignment) {
-        void* currentPtr = m_memPool + m_currentOffset;
-        size_t memAvailable = m_poolSize - m_currentOffset;
-        //NOTE: std::align will automatically subtract the space used from memAvailable here
-        // std::align returns a ptr to the first byte of aligned storage
-        void* alignedPtr = align(alignment, size, currentPtr, memAvailable );
+    void *allocate() {
+        size_t memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
+        //cout << "Mem available: " << memAvailable << '\n';
+        if (memAvailable < sizeof(T)) {
+            //cout << "Creating new chunk\n";
+            m_currentChunk->m_next = new MemoryChunk(sizeof(T));
+            m_currentChunk = m_currentChunk->m_next;
+            m_currentChunkOffset = 0;
+            memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
+            m_chunkCount++;
+            m_poolSize = sizeof(T) * m_chunkCount;
+        }
+        void* currentPtr = m_currentChunk->m_data + m_currentChunkOffset;
+        void* alignedPtr = align(alignof(T), sizeof(T), currentPtr, memAvailable);
 
         if (alignedPtr == nullptr) {
-            cerr << "Not enough memory available\n";
             throw bad_alloc();
         }
 
-        size_t alignedOffset = static_cast<unsigned char *>(alignedPtr) - m_memPool;
-        m_currentOffset = alignedOffset + size;
+        size_t alignedOffset = static_cast<unsigned char*> (alignedPtr) - m_currentChunk->m_data;
+        m_currentChunkOffset = alignedOffset + sizeof(T);
 
         return alignedPtr;
     }
 
-    void deallocate(void* ptr) {
-        cout << "IMPLEMENT ME\n";
+    void deallocate(void *ptr) noexcept {
+        MemoryChunk *chunk = m_chunkHead;
+        while (chunk->m_next != nullptr) {
+            delete[] chunk->m_data;
+            chunk = chunk->m_next;
+        }
     }
 };
 
