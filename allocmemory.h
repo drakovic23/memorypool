@@ -23,7 +23,7 @@ class MemoryPool {
     //unsigned char* m_memPool; // Pointer to allocated memory pool
     MemoryChunk *m_currentChunk; // current chunk
     MemoryChunk *m_chunkHead;
-    size_t m_poolSize; // Total memory allocated
+    size_t m_poolSize; // Total memory in terms of chunks allocated
     size_t m_currentChunkOffset;
     size_t m_objectsPerChunk;
     size_t m_chunkCount;
@@ -41,19 +41,26 @@ public:
     }
 
     ~MemoryPool() {
-        MemoryChunk *chunk = m_chunkHead;
-        while (chunk->m_next != nullptr) {
-            delete[] chunk->m_data;
-            chunk = chunk->m_next;
+        MemoryChunk* current = m_chunkHead;
+        while (current != nullptr) {
+            MemoryChunk* next = current->m_next;
+            delete[] current->m_data;
+            delete current;
+            current = next;
         }
     }
 
     void *allocate() {
+        if (m_currentChunk == nullptr) { //If allocate is called, the current chunk needs to be reallocated
+            m_currentChunk = new MemoryChunk(sizeof(T));
+            m_chunkCount = 1;
+            m_poolSize = sizeof(T) * m_chunkCount;
+        }
         size_t memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
         //cout << "Mem available: " << memAvailable << '\n';
         if (memAvailable < sizeof(T)) {
             //cout << "Creating new chunk\n";
-            m_currentChunk->m_next = new MemoryChunk(sizeof(T));
+            m_currentChunk->m_next = new MemoryChunk(sizeof(T) * m_objectsPerChunk);
             m_currentChunk = m_currentChunk->m_next;
             m_currentChunkOffset = 0;
             memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
@@ -73,13 +80,20 @@ public:
         return alignedPtr;
     }
 
-    void deallocate(void *ptr) noexcept {
+    void clear() noexcept {
         MemoryChunk *chunk = m_chunkHead;
         while (chunk->m_next != nullptr) {
             delete[] chunk->m_data;
             chunk = chunk->m_next;
         }
+
+        m_chunkCount = 0;
+        m_currentChunk = nullptr;
+        m_currentChunkOffset = 0;
+        m_poolSize = 0;
     }
+
+
 };
 
 
