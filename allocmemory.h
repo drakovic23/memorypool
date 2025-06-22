@@ -50,9 +50,10 @@ public:
 
     void *allocate() {
         if (m_currentChunk == nullptr) { //If clear is called, the current chunk needs to be reallocated
-            m_currentChunk = new MemoryChunk(sizeof(T));
+            m_currentChunk = new MemoryChunk(sizeof(T) * m_objectsPerChunk);
             m_chunkCount = 1;
             m_poolSize = sizeof(T) * m_chunkCount;
+            m_chunkHead = m_currentChunk;
         }
         size_t memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
         if (memAvailable < sizeof(T)) {
@@ -66,6 +67,8 @@ public:
         void* currentPtr = m_currentChunk->m_data + m_currentChunkOffset;
         void* alignedPtr = align(alignof(T), sizeof(T), currentPtr, memAvailable);
 
+        //This occurs if std::align fails.
+        //A consideration for the future is to try to allocate a new MemoryChunk instead of throwing bad_alloc
         if (alignedPtr == nullptr) {
             throw bad_alloc();
         }
@@ -89,8 +92,6 @@ public:
         m_currentChunkOffset = 0;
         m_poolSize = 0;
     }
-
-
 };
 
 
