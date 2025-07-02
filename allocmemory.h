@@ -9,12 +9,12 @@ using namespace std;
 template<typename T>
 class MemoryPool {
     struct MemoryChunk {
-        unsigned char *m_data;
+        std::byte *m_data;
         MemoryChunk *m_next;
         size_t m_size;
 
         explicit MemoryChunk(size_t size) {
-            m_data = new unsigned char[size];
+            m_data = new std::byte[size];
             m_size = size;
             m_next = nullptr;
         }
@@ -56,7 +56,6 @@ public:
 
     //TODO: ROf5
 
-    // We take our raw pointer and
     void deallocate(void* ptr) noexcept {
         if (ptr == nullptr) return;
 
@@ -80,38 +79,38 @@ public:
             m_nextFreeSlot = *reinterpret_cast<void**>(recycledPtr);
 
             return recycledPtr;
-        } else { //Otherwise, we do the usual operations
-            //If clear is called, the current chunk needs to be reallocated
-            if (m_currentChunk == nullptr) {
-                m_currentChunk = new MemoryChunk(sizeof(T) * m_objectsPerChunk);
-                m_chunkCount = 1;
-                calcPoolSize();
-                m_chunkHead = m_currentChunk;
-            }
-
-            size_t memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
-            if (memAvailable < sizeof(T)) { // Need a new memory chunk
-                m_currentChunk->m_next = new MemoryChunk(sizeof(T) * m_objectsPerChunk);
-                m_currentChunk = m_currentChunk->m_next;
-                m_currentChunkOffset = 0;
-                memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
-                m_chunkCount++;
-                calcPoolSize();
-            }
-            void *currentPtr = m_currentChunk->m_data + m_currentChunkOffset;
-            void *alignedPtr = align(alignof(T), sizeof(T), currentPtr, memAvailable);
-
-            //This occurs if std::align fails.
-            //A consideration for the future is to try to allocate a new MemoryChunk instead of throwing bad_alloc
-            if (alignedPtr == nullptr) {
-                throw bad_alloc();
-            }
-
-            size_t alignedOffset = static_cast<unsigned char *>(alignedPtr) - m_currentChunk->m_data;
-            m_currentChunkOffset = alignedOffset + sizeof(T);
-
-            return alignedPtr;
         }
+        //Otherwise, we do the usual operations
+        //If clear is called, the current chunk needs to be reallocated
+        if (m_currentChunk == nullptr) {
+            m_currentChunk = new MemoryChunk(sizeof(T) * m_objectsPerChunk);
+            m_chunkCount = 1;
+            calcPoolSize();
+            m_chunkHead = m_currentChunk;
+        }
+
+        size_t memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
+        if (memAvailable < sizeof(T)) { // Need a new memory chunk
+            m_currentChunk->m_next = new MemoryChunk(sizeof(T) * m_objectsPerChunk);
+            m_currentChunk = m_currentChunk->m_next;
+            m_currentChunkOffset = 0;
+            memAvailable = m_currentChunk->m_size - m_currentChunkOffset;
+            m_chunkCount++;
+            calcPoolSize();
+        }
+        void *currentPtr = m_currentChunk->m_data + m_currentChunkOffset;
+        void *alignedPtr = align(alignof(T), sizeof(T), currentPtr, memAvailable);
+
+        //This occurs if std::align fails.
+        //A consideration for the future is to try to allocate a new MemoryChunk instead of throwing bad_alloc
+        if (alignedPtr == nullptr) {
+            throw bad_alloc();
+        }
+
+        size_t alignedOffset = static_cast<std::byte *>(alignedPtr) - m_currentChunk->m_data;
+        m_currentChunkOffset = alignedOffset + sizeof(T);
+
+        return alignedPtr;
     }
 
     //Clears all memory chunks
